@@ -1,0 +1,13 @@
+node_modules
+dist
+.expo
+.wrangler
+.env
+.env.*
+!.env.example
+coverage
+*.tsbuildinfo
+bun.lockb
+.DS_Store
+tmp
+.claude

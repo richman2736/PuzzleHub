@@ -1,0 +1,35 @@
+{
+  "name": "puzzlehub",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev:mobile": "bun --cwd apps/mobile start",
+    "dev:mobile:client": "bun --cwd apps/mobile start:dev-client",
+    "dev:mobile:ios": "bun --cwd apps/mobile ios:dev",
+    "dev:web": "bun --cwd apps/web dev",
+    "dev:worker": "bun --cwd apps/worker dev",
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:stress": "vitest run --config vitest.stress.config.ts",
+    "test:mobile:e2e": "bun --cwd apps/mobile e2e:ios",
+    "build:worker": "bun --cwd apps/worker build",
+    "build:web": "bun --cwd apps/web build"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.3",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "oxfmt": "0.55.0",
+    "oxlint": "1.70.0",
+    "prettier": "3.8.4",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
+  },
+  "packageManager": "bun@1.3.4"
+}

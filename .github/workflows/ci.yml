@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v3
+        with:
+          bun-version: "1.3.4"
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Format check
+        run: bun run format:check
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      # Covers shared package unit tests plus the Worker contract tests
+      # (no-solution-leak, sync, daily, completion, stats, leaderboard).
+      - name: Test
+        run: bun run test
+
+      # Worker dry-run build validates wrangler config, bindings, scheduled,
+      # and queue handlers without deploying.
+      - name: Build Worker
+        run: bun run build:worker
+
+      - name: Build Web
+        run: bun run build:web

@@ -1,0 +1,49 @@
+appId: app.puzzlehub.mobile.dev
+---
+- launchApp
+- assertVisible:
+    id: sudoku-screen
+- assertVisible:
+    id: sudoku-board
+
+- tapOn:
+    id: sudoku-settings-open
+- assertVisible:
+    id: sudoku-settings-modal
+- tapOn:
+    id: sudoku-settings-theme-dark
+- tapOn:
+    id: sudoku-settings-theme-light
+- tapOn:
+    id: sudoku-settings-language-nb
+- tapOn:
+    id: sudoku-settings-restart
+- assertVisible:
+    id: sudoku-board
+
+- tapOn:
+    id: sudoku-cell-8-0
+- tapOn:
+    id: sudoku-mode-notes
+- tapOn:
+    id: sudoku-digit-1
+- tapOn:
+    id: sudoku-mode-answer
+- tapOn:
+    id: sudoku-digit-1
+- tapOn:
+    id: sudoku-action-undo
+- tapOn:
+    id: sudoku-action-erase
+
+- tapOn:
+    id: sudoku-game-menu-open
+- assertVisible:
+    id: sudoku-game-menu-modal
+- tapOn:
+    id: sudoku-game-menu-close
+
+- tapOn:
+    id: sudoku-pause-toggle
+- tapOn:
+    id: sudoku-pause-toggle

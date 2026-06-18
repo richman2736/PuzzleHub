@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "PuzzleHub",
+    "slug": "puzzlehub",
+    "scheme": "puzzlehub",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#eef6f2"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.puzzlehub.mobile",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.puzzlehub.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b1f2d"
+      }
+    },
+    "plugins": ["expo-dev-client", "expo-secure-store", "expo-localization"],
+    "extra": {
+      "appVariant": "production",
+      "eas": {
+        "projectId": "48cc4c24-6f37-4093-90f3-490ef14918e6"
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@puzzlehub/auth": ["packages/auth/src/index.ts"],
+      "@puzzlehub/block-engine": ["packages/block-engine/src/index.ts"],
+      "@puzzlehub/config": ["packages/config/src/index.ts"],
+      "@puzzlehub/db": ["packages/db/src/index.ts"],
+      "@puzzlehub/game-core": ["packages/game-core/src/index.ts"],
+      "@puzzlehub/i18n": ["packages/i18n/src/index.ts"],
+      "@puzzlehub/nonogram-engine": ["packages/nonogram-engine/src/index.ts"],
+      "@puzzlehub/sort-engine": ["packages/sort-engine/src/index.ts"],
+      "@puzzlehub/sudoku-engine": ["packages/sudoku-engine/src/index.ts"],
+      "@puzzlehub/ui-mobile": ["packages/ui-mobile/src/index.ts"],
+      "@puzzlehub/validation": ["packages/validation/src/index.ts"],
+      "@puzzlehub/word-engine": ["packages/word-engine/src/index.ts"]
+    }
+  }
+}

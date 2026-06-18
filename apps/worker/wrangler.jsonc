@@ -1,0 +1,139 @@
+{
+  "name": "puzzlehub-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+  "vars": {
+    "APP_ENV": "local",
+  },
+  "d1_databases": [
+    {
+      "binding": "PUZZLEHUB_DB",
+      "database_name": "puzzlehub-dev",
+      "database_id": "26b7ed49-3d64-49c0-b1a1-bf3ab6d86439",
+      "migrations_dir": "../../packages/db/migrations",
+    },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "PUZZLEHUB_EVENTS",
+        "queue": "puzzlehub-events-dev",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "puzzlehub-events-dev",
+        "max_batch_size": 10,
+        "max_batch_timeout": 30,
+        "max_retries": 5,
+      },
+    ],
+  },
+  "ratelimits": [
+    {
+      "name": "API_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 300,
+        "period": 60,
+      },
+    },
+  ],
+  // Daily cron keeps the next week of dailies published (fills missed publishes).
+  "triggers": {
+    "crons": ["0 1 * * *"],
+  },
+  "env": {
+    "staging": {
+      "name": "puzzlehub-api-staging",
+      "vars": {
+        "APP_ENV": "staging",
+      },
+      "d1_databases": [
+        {
+          "binding": "PUZZLEHUB_DB",
+          "database_name": "puzzlehub-staging",
+          "database_id": "dd5925ae-4928-4972-8887-9bfad93ca588",
+          "migrations_dir": "../../packages/db/migrations",
+        },
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "PUZZLEHUB_EVENTS",
+            "queue": "puzzlehub-events-staging",
+          },
+        ],
+        "consumers": [
+          {
+            "queue": "puzzlehub-events-staging",
+            "max_batch_size": 10,
+            "max_batch_timeout": 30,
+            "max_retries": 5,
+          },
+        ],
+      },
+      "ratelimits": [
+        {
+          "name": "API_RATE_LIMITER",
+          "namespace_id": "1002",
+          "simple": {
+            "limit": 600,
+            "period": 60,
+          },
+        },
+      ],
+      "triggers": {
+        "crons": ["0 1 * * *"],
+      },
+    },
+    "production": {
+      "name": "puzzlehub-api-production",
+      "vars": {
+        "APP_ENV": "production",
+      },
+      "d1_databases": [
+        {
+          "binding": "PUZZLEHUB_DB",
+          "database_name": "puzzlehub-production",
+          "database_id": "124e6596-89ee-4dd3-85cc-c89961429836",
+          "migrations_dir": "../../packages/db/migrations",
+        },
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "PUZZLEHUB_EVENTS",
+            "queue": "puzzlehub-events-production",
+          },
+        ],
+        "consumers": [
+          {
+            "queue": "puzzlehub-events-production",
+            "max_batch_size": 10,
+            "max_batch_timeout": 30,
+            "max_retries": 5,
+          },
+        ],
+      },
+      "ratelimits": [
+        {
+          "name": "API_RATE_LIMITER",
+          "namespace_id": "1003",
+          "simple": {
+            "limit": 1200,
+            "period": 60,
+          },
+        },
+      ],
+      "triggers": {
+        "crons": ["0 1 * * *"],
+      },
+    },
+  },
+}

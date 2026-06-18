@@ -1,0 +1,22 @@
+{
+  "name": "@puzzlehub/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --env=\"\" --outdir dist",
+    "types": "wrangler types src/worker-configuration.d.ts && bunx oxfmt src/worker-configuration.d.ts"
+  },
+  "dependencies": {
+    "@puzzlehub/config": "workspace:*",
+    "@puzzlehub/game-core": "workspace:*",
+    "@puzzlehub/sudoku-engine": "workspace:*",
+    "@puzzlehub/validation": "workspace:*",
+    "hono": "4.12.25",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "wrangler": "4.100.0"
+  }
+}

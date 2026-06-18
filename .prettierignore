@@ -1,0 +1,7 @@
+# Generated native project files (managed by Xcode/Expo, not hand-formatted).
+apps/mobile/ios/
+
+# Build output and dependencies.
+dist/
+node_modules/
+coverage/
