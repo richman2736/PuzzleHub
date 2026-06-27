@@ -70,7 +70,9 @@
       "name": "@puzzlehub/worker",
       "version": "0.1.0",
       "dependencies": {
+        "@puzzlehub/auth": "workspace:*",
         "@puzzlehub/config": "workspace:*",
+        "@puzzlehub/db": "workspace:*",
         "@puzzlehub/game-core": "workspace:*",
         "@puzzlehub/sudoku-engine": "workspace:*",
         "@puzzlehub/validation": "workspace:*",
@@ -85,6 +87,7 @@
       "name": "@puzzlehub/auth",
       "version": "0.1.0",
       "dependencies": {
+        "@puzzlehub/db": "workspace:*",
         "better-auth": "1.6.18",
       },
     },

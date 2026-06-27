@@ -18,11 +18,15 @@ const gameType = (name: string) => text(name, { enum: gameTypes }).$type<GameTyp
 const difficulty = (name: string) => text(name, { enum: difficulties }).$type<Difficulty>();
 const json = <T>(name: string) => text(name, { mode: "json" }).$type<T>();
 
+// Auth tables (users / sessions / accounts / verifications) mirror Better Auth's
+// required model so the Drizzle adapter can read and write them directly. Column
+// keys use Better Auth's field names (camelCase) mapped to snake_case columns.
 export const users = sqliteTable(
   "users",
   {
     id: text("id").primaryKey(),
     email: text("email").notNull().unique(),
+    emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
     name: text("name"),
     image: text("image"),
     createdAt: timestamp("created_at"),
@@ -40,6 +44,8 @@ export const sessions = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     token: text("token").notNull().unique(),
     expiresAt: timestamp("expires_at"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
     createdAt: timestamp("created_at"),
     updatedAt: timestamp("updated_at"),
   },
@@ -55,6 +61,14 @@ export const accounts = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     providerId: text("provider_id").notNull(),
     accountId: text("account_id").notNull(),
+    // Credential/OAuth material managed by Better Auth (nullable for magic-link only).
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: text("access_token_expires_at"),
+    refreshTokenExpiresAt: text("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
     createdAt: timestamp("created_at"),
     updatedAt: timestamp("updated_at"),
   },
@@ -62,6 +76,20 @@ export const accounts = sqliteTable(
     index("accounts_user_id_idx").on(table.userId),
     uniqueIndex("accounts_provider_account_idx").on(table.providerId, table.accountId),
   ],
+);
+
+// Better Auth's verification store (magic-link tokens, email verification, etc.).
+export const verifications = sqliteTable(
+  "verifications",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at"),
+    createdAt: timestamp("created_at"),
+    updatedAt: timestamp("updated_at"),
+  },
+  (table) => [index("verifications_identifier_idx").on(table.identifier)],
 );
 
 export const games = sqliteTable("games", {

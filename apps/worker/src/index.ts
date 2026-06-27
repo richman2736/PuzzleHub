@@ -1,4 +1,6 @@
+import { createAuth, type PuzzleHubAuth } from "@puzzlehub/auth";
 import { gameCatalog } from "@puzzlehub/config";
+import { createAuthDb } from "@puzzlehub/db";
 import { difficulties, type Difficulty, type GameType } from "@puzzlehub/game-core";
 import {
   calculateSudokuScore,
@@ -57,6 +59,11 @@ import {
 } from "./sync";
 
 const apiVersion = "0.1.0";
+
+// Hono environment: the runtime bindings plus per-request variables set by
+// middleware. `userId` is populated by requireAuth once a session is verified.
+type AppVariables = { userId: string };
+type AppEnv = { Bindings: Env; Variables: AppVariables };
 
 interface PublicSudokuData {
   grid: SudokuGrid;
@@ -121,7 +128,7 @@ function logEvent(record: Record<string, unknown>): void {
 // Applied to sensitive write/auth endpoints. Fails open if the binding is
 // missing (e.g. unit tests without env) or the limiter errors, so a limiter
 // outage degrades to "unlimited" rather than a hard outage.
-function rateLimit(name: string): MiddlewareHandler<{ Bindings: Env }> {
+function rateLimit(name: string): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const limiter = c.env?.API_RATE_LIMITER;
 
@@ -299,7 +306,7 @@ function dailyPuzzleEnvelope(
 
 // Admin endpoints require a bearer token matching the ADMIN_TOKEN secret. With
 // no token configured the surface stays closed (503) rather than open.
-function requireAdmin(): MiddlewareHandler<{ Bindings: Env }> {
+function requireAdmin(): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const adminToken = (c.env as Env & { ADMIN_TOKEN?: string })?.ADMIN_TOKEN;
 
@@ -310,6 +317,114 @@ function requireAdmin(): MiddlewareHandler<{ Bindings: Env }> {
     if (c.req.header("Authorization") !== `Bearer ${adminToken}`) {
       return c.json({ error: "unauthorized" }, 401);
     }
+
+    return next();
+  };
+}
+
+// --- Authentication ------------------------------------------------------
+// Better Auth instance, memoized per D1 binding so it is built once per isolate.
+// Returns null when auth is unconfigured (no secret or DB) so protected routes
+// fail closed (deny) rather than open.
+const authByDb = new WeakMap<D1Database, PuzzleHubAuth>();
+
+interface AuthEnv {
+  BETTER_AUTH_SECRET?: string;
+  BETTER_AUTH_URL?: string;
+  BETTER_AUTH_TRUSTED_ORIGINS?: string;
+}
+
+function resolveAuth(env: Env): PuzzleHubAuth | null {
+  const authEnv = env as Env & AuthEnv;
+  const secret = authEnv?.BETTER_AUTH_SECRET;
+  const db = env?.PUZZLEHUB_DB;
+
+  if (!secret || !db) {
+    return null;
+  }
+
+  const existing = authByDb.get(db);
+
+  if (existing) {
+    return existing;
+  }
+
+  const trustedOrigins = authEnv.BETTER_AUTH_TRUSTED_ORIGINS
+    ? authEnv.BETTER_AUTH_TRUSTED_ORIGINS.split(",").map((origin) => origin.trim())
+    : ["http://localhost:8081", "http://localhost:5173"];
+
+  const auth = createAuth({
+    db: createAuthDb(db),
+    secret,
+    baseUrl: authEnv.BETTER_AUTH_URL ?? "http://localhost:8787",
+    trustedOrigins,
+    sendMagicLink: ({ email }) => {
+      // Email delivery is wired in the email milestone; for now we only record
+      // that a link was issued. The link and token are never logged.
+      logEvent({
+        level: "info",
+        message: "magic_link_issued",
+        emailDomain: email.split("@")[1] ?? "unknown",
+      });
+
+      return Promise.resolve();
+    },
+  });
+
+  authByDb.set(db, auth);
+
+  return auth;
+}
+
+// Session resolution seam: production reads the Better Auth session from the
+// request; tests inject a fake identity so the HTTP contract is exercised without
+// a live auth database.
+export interface AuthIdentity {
+  userId: string;
+}
+
+export interface SessionResolver {
+  resolve(request: Request, env: Env): Promise<AuthIdentity | null>;
+}
+
+let sessionResolverOverride: SessionResolver | null = null;
+
+export function __setSessionResolverForTests(resolver: SessionResolver | null): void {
+  sessionResolverOverride = resolver;
+}
+
+function resolveSessionResolver(): SessionResolver {
+  return (
+    sessionResolverOverride ?? {
+      async resolve(request, env) {
+        const auth = resolveAuth(env);
+
+        if (!auth) {
+          return null;
+        }
+
+        const session = await auth.api.getSession({ headers: request.headers });
+
+        return session?.user?.id ? { userId: session.user.id } : null;
+      },
+    }
+  );
+}
+
+// Gate for endpoints that must be tied to an authenticated user. Denies with 401
+// when no valid session is present and otherwise sets `userId` on the context.
+function requireAuth(): MiddlewareHandler<AppEnv> {
+  return async (c, next) => {
+    const identity = await resolveSessionResolver().resolve(c.req.raw, c.env);
+
+    if (!identity) {
+      return c.json(
+        { error: "unauthorized", message: "Authentication is required for this request." },
+        401,
+      );
+    }
+
+    c.set("userId", identity.userId);
 
     return next();
   };
@@ -332,7 +447,7 @@ function toPublicSyncOp(op: StoredSyncOp): StoredSyncOp {
   };
 }
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AppEnv>();
 
 app.use(
   "*",
@@ -371,7 +486,7 @@ app.get("/health", (c) =>
   }),
 );
 
-const v1 = new Hono<{ Bindings: Env }>();
+const v1 = new Hono<AppEnv>();
 
 v1.get("/me", (c) =>
   c.json({
@@ -517,7 +632,7 @@ v1.post("/game/move", rateLimit("move"), async (c) => {
   });
 });
 
-v1.post("/game/complete", rateLimit("complete"), async (c) => {
+v1.post("/game/complete", rateLimit("complete"), requireAuth(), async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = completeGameSchema.safeParse(body);
 
@@ -597,15 +712,17 @@ v1.post("/game/complete", rateLimit("complete"), async (c) => {
   });
 });
 
-v1.post("/auth/*", rateLimit("auth"), (c) =>
-  c.json(
-    {
-      error: "not_implemented",
-      message: "Better Auth wiring is reserved for the account/sync milestone.",
-    },
-    501,
-  ),
-);
+// Better Auth owns every method under its base path; the rate limiter still
+// fronts it so credential-stuffing is throttled before the handler runs.
+v1.on(["GET", "POST"], "/auth/*", rateLimit("auth"), async (c) => {
+  const auth = resolveAuth(c.env);
+
+  if (!auth) {
+    return c.json({ error: "auth_not_configured" }, 503);
+  }
+
+  return auth.handler(c.req.raw);
+});
 
 v1.get("/admin/daily/preview", requireAdmin(), (c) => {
   const parsed = dailyChallengeQuerySchema.safeParse({
@@ -690,7 +807,7 @@ v1.get("/admin/daily/status", requireAdmin(), async (c) => {
   return c.json({ status });
 });
 
-v1.post("/sync", rateLimit("sync"), async (c) => {
+v1.post("/sync", rateLimit("sync"), requireAuth(), async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = syncPushSchema.safeParse(body);
 
@@ -703,7 +820,7 @@ v1.post("/sync", rateLimit("sync"), async (c) => {
   return c.json({ deviceId: parsed.data.deviceId, cursor, results });
 });
 
-v1.get("/sync", rateLimit("sync"), async (c) => {
+v1.get("/sync", rateLimit("sync"), requireAuth(), async (c) => {
   const parsed = syncPullQuerySchema.safeParse({
     deviceId: c.req.query("deviceId"),
     since: c.req.query("since") ?? undefined,

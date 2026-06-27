@@ -6,6 +6,7 @@ import {
   __setCompletionDepsForTests,
   __setDailyStoreForTests,
   __setLeaderboardStoreForTests,
+  __setSessionResolverForTests,
   __setStatsStoreForTests,
   __setSyncStoreForTests,
   queue,
@@ -58,6 +59,19 @@ function envWithRateLimiter(success: boolean): Env {
     API_RATE_LIMITER: { limit: async () => ({ success }) },
   } as unknown as Env;
 }
+
+// Protected routes require a session; inject a fixed test identity so the existing
+// HTTP-contract tests exercise the handlers behind requireAuth without a live auth
+// database. The unauthenticated (401) cases live in auth.test.ts.
+beforeEach(() => {
+  __setSessionResolverForTests({
+    resolve: () => Promise.resolve({ userId: "test-user" }),
+  });
+});
+
+afterEach(() => {
+  __setSessionResolverForTests(null);
+});
 
 describe("worker API versioning", () => {
   it("serves health unversioned and functional routes under /v1", async () => {
