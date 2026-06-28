@@ -22,6 +22,7 @@
         "@expo/vector-icons": "15.1.1",
         "@op-engineering/op-sqlite": "16.2.2",
         "@puzzlehub/config": "workspace:*",
+        "@puzzlehub/game-core": "workspace:*",
         "@puzzlehub/i18n": "workspace:*",
         "@puzzlehub/sudoku-engine": "workspace:*",
         "@puzzlehub/ui-mobile": "workspace:*",

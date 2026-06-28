@@ -16,10 +16,11 @@ import {
   type SudokuDigit,
 } from "@puzzlehub/sudoku-engine";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useColorScheme,
@@ -38,13 +39,23 @@ import {
 import {
   acknowledgeSudokuConflicts,
   getOrCreateDeviceId,
+  loadLocalSudokuProgress,
   loadSudokuSyncSummary,
   loadSavedSudokuGame,
+  recordSudokuCompletion,
   recordSudokuMove,
   saveSudokuSnapshot,
   undoLastSudokuMove,
+  type RecordSudokuCompletionResult,
   type RecordSudokuMoveInput,
 } from "./src/sudokuRepository";
+import type {
+  LocalSudokuProgress,
+  LocalSudokuPersonalRecords,
+  SudokuAchievementId,
+  SudokuMedal,
+} from "./src/sudokuRewards";
+import { sudokuAchievementIds } from "./src/sudokuRewards";
 import { getSyncApiBaseUrl, startSudokuSync } from "./src/sudokuSync";
 import type { SyncScheduler } from "./src/syncClient";
 import {
@@ -53,6 +64,7 @@ import {
   getSudokuDigitUiState,
   type SudokuCellPosition,
 } from "./src/sudokuUiModel";
+import { getLocalDailySudokuDescriptor } from "./src/sudokuDaily";
 import { usePuzzleHubI18n } from "./src/usePuzzleHubI18n";
 
 const gameNameKeys = {
@@ -81,6 +93,21 @@ const themePreferenceOptions = [
   labelKey: TranslationKey;
   icon: keyof typeof Ionicons.glyphMap;
 }[];
+
+const medalLabelKeys = {
+  bronze: "reward.bronze",
+  gold: "reward.gold",
+  silver: "reward.silver",
+} satisfies Record<SudokuMedal, TranslationKey>;
+
+const achievementLabelKeys = {
+  first_daily: "achievement.first_daily",
+  first_solve: "achievement.first_solve",
+  hard_completed: "achievement.hard_completed",
+  no_mistake_solve: "achievement.no_mistake_solve",
+  streak_3: "achievement.streak_3",
+  streak_7: "achievement.streak_7",
+} satisfies Record<SudokuAchievementId, TranslationKey>;
 
 type ResolvedTheme = "light" | "dark";
 
@@ -188,20 +215,22 @@ export default function App() {
   const resolvedTheme = resolveThemePreference(preferences.theme, systemColorScheme);
   const colors = appThemeColors[resolvedTheme];
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const dailySudoku = useMemo(() => getLocalDailySudokuDescriptor(), []);
   const generated = useMemo(
-    () => generateSudoku({ difficulty: "easy", seed: "mobile-preview" }),
-    [],
+    () => generateSudoku({ difficulty: dailySudoku.difficulty, seed: dailySudoku.seed }),
+    [dailySudoku.difficulty, dailySudoku.seed],
   );
-  const gameId = useMemo(
-    () =>
-      `sudoku:${generated.puzzle.algorithmVersion}:${generated.puzzle.difficulty}:${generated.puzzle.seed}`,
-    [generated.puzzle.algorithmVersion, generated.puzzle.difficulty, generated.puzzle.seed],
-  );
+  const gameId = dailySudoku.gameId;
   const [state, setState] = useState(() => createInitialSudokuState(generated.puzzle));
   const [selectedCell, setSelectedCell] = useState<SudokuCellPosition | null>(null);
   const [incorrectCell, setIncorrectCell] = useState<IncorrectCell | null>(null);
   const [isNoteMode, setIsNoteMode] = useState(false);
   const [isCompletionVisible, setIsCompletionVisible] = useState(false);
+  const [completionReward, setCompletionReward] = useState<RecordSudokuCompletionResult | null>(
+    null,
+  );
+  const [localProgress, setLocalProgress] = useState<LocalSudokuProgress | null>(null);
+  const [isProgressVisible, setIsProgressVisible] = useState(false);
   const [isGameMenuVisible, setIsGameMenuVisible] = useState(false);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [networkState, setNetworkState] = useState<NetInfoState | null>(null);
@@ -223,6 +252,16 @@ export default function App() {
     mistakes: state.mistakes,
     hintsUsed: state.hintsUsed,
   });
+  const refreshLocalProgress = useCallback((): void => {
+    void loadLocalSudokuProgress()
+      .then((progress) => {
+        setLocalProgress(progress);
+        setStorageError(null);
+      })
+      .catch((error: unknown) => {
+        setStorageError(error instanceof Error ? error.message : t("error.loadProgress"));
+      });
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -266,11 +305,15 @@ export default function App() {
           });
         }
 
-        const syncSummary = await loadSudokuSyncSummary(gameId);
+        const [syncSummary, progress] = await Promise.all([
+          loadSudokuSyncSummary(gameId),
+          loadLocalSudokuProgress(),
+        ]);
 
         if (!cancelled) {
           setPendingSyncCount(syncSummary.pendingCount);
           setConflictSyncCount(syncSummary.conflictCount);
+          setLocalProgress(progress);
           setIsStorageReady(true);
           setStorageError(null);
         }
@@ -380,6 +423,43 @@ export default function App() {
       setIsCompletionVisible(true);
     }
   }, [state.status]);
+
+  useEffect(() => {
+    if (!isStorageReady || state.status !== "completed" || state.completedAt === undefined) {
+      return;
+    }
+
+    void recordSudokuCompletion({
+      gameId,
+      difficulty: generated.puzzle.difficulty,
+      score: score.score,
+      elapsedSeconds: state.elapsedSeconds,
+      mistakes: state.mistakes,
+      hintsUsed: state.hintsUsed,
+      completedAt: state.completedAt,
+      isDaily: true,
+    })
+      .then((reward) => {
+        setCompletionReward(reward);
+        refreshLocalProgress();
+        setStorageError(null);
+      })
+      .catch((error: unknown) => {
+        setStorageError(error instanceof Error ? error.message : t("error.saveCompletion"));
+      });
+  }, [
+    gameId,
+    generated.puzzle.difficulty,
+    isStorageReady,
+    score.score,
+    state.completedAt,
+    state.elapsedSeconds,
+    state.hintsUsed,
+    state.mistakes,
+    state.status,
+    refreshLocalProgress,
+    t,
+  ]);
 
   const refreshSyncSummary = (): void => {
     void loadSudokuSyncSummary(gameId)
@@ -583,6 +663,7 @@ export default function App() {
     const nextState = createInitialSudokuState(generated.puzzle);
 
     setIncorrectCell(null);
+    setCompletionReward(null);
     setIsCompletionVisible(false);
     setIsSettingsVisible(false);
     setSelectedCell(null);
@@ -657,6 +738,52 @@ export default function App() {
       selectedCellValue,
     }),
   );
+  const personalRecordKeys =
+    completionReward === null ? [] : getPersonalRecordKeys(completionReward.personalRecords);
+  const unlockedAchievementKeys =
+    completionReward?.unlockedAchievementIds.map(
+      (achievementId) => achievementLabelKeys[achievementId],
+    ) ?? [];
+  const progressStats = localProgress?.stats ?? null;
+  const progressAchievementIds = new Set(
+    localProgress?.achievements.map((achievement) => achievement.achievementId) ?? [],
+  );
+  const progressStatItems = [
+    {
+      label: t("metric.games"),
+      value: progressStats === null ? "..." : formatNumber(progressStats.gamesCompleted),
+    },
+    {
+      label: t("metric.totalXp"),
+      value: progressStats === null ? "..." : formatNumber(progressStats.totalXp),
+    },
+    {
+      label: t("metric.bestScore"),
+      value:
+        progressStats === null
+          ? "..."
+          : progressStats.bestScore === null
+            ? "-"
+            : formatNumber(progressStats.bestScore),
+    },
+    {
+      label: t("metric.bestTime"),
+      value:
+        progressStats === null
+          ? "..."
+          : progressStats.bestTimeSeconds === null
+            ? "-"
+            : formatElapsedTime(progressStats.bestTimeSeconds),
+    },
+    {
+      label: t("metric.streak"),
+      value: progressStats === null ? "..." : formatNumber(progressStats.currentStreak),
+    },
+    {
+      label: t("metric.longestStreak"),
+      value: progressStats === null ? "..." : formatNumber(progressStats.longestStreak),
+    },
+  ];
 
   return (
     <SafeAreaProvider>
@@ -686,6 +813,16 @@ export default function App() {
                   size={18}
                   color={colors.text}
                 />
+              </Pressable>
+              <Pressable
+                accessibilityLabel={t("screen.progress")}
+                accessibilityRole="button"
+                hitSlop={iconButtonHitSlop}
+                style={styles.iconButton}
+                testID="sudoku-progress-open"
+                onPress={() => setIsProgressVisible(true)}
+              >
+                <Ionicons name="trophy-outline" size={18} color={colors.text} />
               </Pressable>
               <Pressable
                 accessibilityLabel={t("games.title")}
@@ -976,7 +1113,52 @@ export default function App() {
                   label={t("metric.hints")}
                   value={formatNumber(state.hintsUsed)}
                 />
+                <CompletionStat
+                  styles={styles}
+                  label={t("metric.xp")}
+                  value={
+                    completionReward === null
+                      ? "..."
+                      : `+${formatNumber(completionReward.completion.xp)}`
+                  }
+                />
+                <CompletionStat
+                  styles={styles}
+                  label={t("metric.medal")}
+                  value={
+                    completionReward === null
+                      ? "..."
+                      : t(medalLabelKeys[completionReward.completion.medal])
+                  }
+                />
+                <CompletionStat
+                  styles={styles}
+                  label={t("metric.streak")}
+                  value={
+                    completionReward === null
+                      ? "..."
+                      : formatNumber(completionReward.stats.currentStreak)
+                  }
+                />
               </View>
+              {(personalRecordKeys.length > 0 || unlockedAchievementKeys.length > 0) && (
+                <View style={styles.rewardPanel}>
+                  {personalRecordKeys.length > 0 && (
+                    <RewardGroup
+                      label={t("reward.personalRecords")}
+                      items={personalRecordKeys.map((key) => t(key))}
+                      styles={styles}
+                    />
+                  )}
+                  {unlockedAchievementKeys.length > 0 && (
+                    <RewardGroup
+                      label={t("reward.achievements")}
+                      items={unlockedAchievementKeys.map((key) => t(key))}
+                      styles={styles}
+                    />
+                  )}
+                </View>
+              )}
               <View style={styles.modalActions}>
                 <Pressable
                   accessibilityRole="button"
@@ -996,6 +1178,85 @@ export default function App() {
                   <Text style={styles.modalSecondaryButtonText}>{t("action.close")}</Text>
                 </Pressable>
               </View>
+            </View>
+          </View>
+        </Modal>
+        <Modal
+          animationType="fade"
+          transparent
+          visible={isProgressVisible}
+          onRequestClose={() => setIsProgressVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View
+              style={[styles.gameMenuModal, styles.progressModal]}
+              testID="sudoku-progress-modal"
+            >
+              <View style={styles.progressTitleRow}>
+                <Text style={styles.gameMenuTitle}>{t("screen.progress")}</Text>
+                <View style={styles.progressCountChip}>
+                  <Ionicons name="ribbon-outline" size={15} color={colors.accent} />
+                  <Text style={styles.progressCountText}>
+                    {formatNumber(progressAchievementIds.size)}/
+                    {formatNumber(sudokuAchievementIds.length)}
+                  </Text>
+                </View>
+              </View>
+              <ScrollView
+                contentContainerStyle={styles.progressScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.completionStats}>
+                  {progressStatItems.map((item) => (
+                    <CompletionStat
+                      key={item.label}
+                      styles={styles}
+                      label={item.label}
+                      value={item.value}
+                    />
+                  ))}
+                </View>
+                <View style={styles.progressSection}>
+                  <Text style={styles.settingsSectionTitle}>{t("reward.achievements")}</Text>
+                  <View style={styles.progressAchievementList}>
+                    {sudokuAchievementIds.map((achievementId) => {
+                      const isUnlocked = progressAchievementIds.has(achievementId);
+
+                      return (
+                        <View
+                          key={achievementId}
+                          style={[
+                            styles.progressAchievementItem,
+                            !isUnlocked && styles.lockedProgressAchievementItem,
+                          ]}
+                        >
+                          <Ionicons
+                            name={isUnlocked ? "checkmark-circle" : "lock-closed-outline"}
+                            size={18}
+                            color={isUnlocked ? colors.accent : colors.textSoft}
+                          />
+                          <Text
+                            style={[
+                              styles.progressAchievementText,
+                              !isUnlocked && styles.lockedProgressAchievementText,
+                            ]}
+                          >
+                            {t(achievementLabelKeys[achievementId])}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
+              <Pressable
+                accessibilityRole="button"
+                style={styles.modalSecondaryButton}
+                testID="sudoku-progress-close"
+                onPress={() => setIsProgressVisible(false)}
+              >
+                <Text style={styles.modalSecondaryButtonText}>{t("action.close")}</Text>
+              </Pressable>
             </View>
           </View>
         </Modal>
@@ -1205,6 +1466,29 @@ function CompletionStat({
   );
 }
 
+function RewardGroup({
+  items,
+  label,
+  styles,
+}: {
+  items: string[];
+  label: string;
+  styles: AppStyleSheet;
+}) {
+  return (
+    <View style={styles.rewardGroup}>
+      <Text style={styles.rewardGroupLabel}>{label}</Text>
+      <View style={styles.rewardChipRow}>
+        {items.map((item) => (
+          <View key={item} style={styles.rewardChip}>
+            <Text style={styles.rewardChipText}>{item}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function NoteGrid({ notes, styles }: { notes: SudokuDigit[]; styles: AppStyleSheet }) {
   if (notes.length === 0) {
     return null;
@@ -1226,6 +1510,32 @@ function formatElapsedTime(elapsedSeconds: number): string {
   const seconds = elapsedSeconds % 60;
 
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function getPersonalRecordKeys(records: LocalSudokuPersonalRecords): TranslationKey[] {
+  const keys: TranslationKey[] = [];
+
+  if (records.firstCompletion) {
+    keys.push("reward.firstCompletion");
+  }
+
+  if (records.newBestScore) {
+    keys.push("reward.newBestScore");
+  }
+
+  if (records.newBestTime) {
+    keys.push("reward.newBestTime");
+  }
+
+  if (records.flawless) {
+    keys.push("reward.flawless");
+  }
+
+  if (records.newLongestStreak) {
+    keys.push("reward.newLongestStreak");
+  }
+
+  return keys;
 }
 
 function createStyles(colors: AppThemeColors) {
@@ -1607,6 +1917,39 @@ function createStyles(colors: AppThemeColors) {
       letterSpacing: 0,
       marginTop: 2,
     },
+    rewardPanel: {
+      gap: 10,
+      width: "100%",
+    },
+    rewardGroup: {
+      gap: 6,
+      width: "100%",
+    },
+    rewardGroupLabel: {
+      color: colors.textMuted,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 0,
+    },
+    rewardChipRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 6,
+    },
+    rewardChip: {
+      backgroundColor: colors.selectedCell,
+      borderColor: colors.accent,
+      borderRadius: 8,
+      borderWidth: 1,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+    },
+    rewardChipText: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 0,
+    },
     modalActions: {
       flexDirection: "row",
       gap: 10,
@@ -1657,6 +2000,66 @@ function createStyles(colors: AppThemeColors) {
       fontSize: 22,
       fontWeight: "800",
       letterSpacing: 0,
+    },
+    progressModal: {
+      maxHeight: "86%",
+    },
+    progressTitleRow: {
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    progressCountChip: {
+      alignItems: "center",
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.border,
+      borderRadius: 8,
+      borderWidth: 1,
+      flexDirection: "row",
+      gap: 5,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+    },
+    progressCountText: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: "800",
+      letterSpacing: 0,
+    },
+    progressScrollContent: {
+      gap: 14,
+      paddingBottom: 2,
+    },
+    progressSection: {
+      gap: 8,
+    },
+    progressAchievementList: {
+      gap: 8,
+    },
+    progressAchievementItem: {
+      alignItems: "center",
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.border,
+      borderRadius: 8,
+      borderWidth: 1,
+      flexDirection: "row",
+      gap: 9,
+      minHeight: 42,
+      paddingHorizontal: 10,
+    },
+    lockedProgressAchievementItem: {
+      opacity: 0.58,
+    },
+    progressAchievementText: {
+      color: colors.text,
+      flex: 1,
+      fontSize: 14,
+      fontWeight: "800",
+      letterSpacing: 0,
+    },
+    lockedProgressAchievementText: {
+      color: colors.textMuted,
     },
     gameMenuList: {
       gap: 8,

@@ -9,9 +9,18 @@ import {
 } from "@puzzlehub/sudoku-engine";
 import { runExclusiveWrite } from "./sqliteWriteQueue";
 import type { OutboxOp, OutboxStore } from "./syncClient";
+import {
+  applyLocalSudokuCompletion,
+  summarizeLocalSudokuProgress,
+  type LocalSudokuCompletion,
+  type LocalSudokuCompletionInput,
+  type LocalSudokuProgress,
+  type LocalSudokuRewardResult,
+  type SudokuMedal,
+} from "./sudokuRewards";
 
 const databaseName = "puzzlehub-mobile.db";
-const databaseVersion = 2;
+const databaseVersion = 3;
 
 // Outbox ops that fail this many times stop being re-sent, so a poison op cannot
 // loop forever (e.g. a 4xx from a client-side bug).
@@ -42,6 +51,10 @@ export interface SaveSudokuSnapshotInput {
   state: SudokuState;
   action: "create" | "reset";
 }
+
+export type RecordSudokuCompletionInput = LocalSudokuCompletionInput;
+export type RecordSudokuCompletionResult = LocalSudokuRewardResult;
+export type LoadLocalSudokuProgressResult = LocalSudokuProgress;
 
 export interface UndoSudokuMoveInput {
   gameId: string;
@@ -76,6 +89,20 @@ interface SudokuMoveStateRow {
 interface SyncSummaryRow {
   pending_count: number;
   conflict_count: number;
+}
+
+interface SudokuCompletionRow {
+  completion_id: string;
+  game_id: string;
+  difficulty: LocalSudokuCompletion["difficulty"];
+  score: number;
+  xp: number;
+  elapsed_seconds: number;
+  mistakes: number;
+  hints_used: number;
+  completed_at: string;
+  is_daily: number;
+  medal: SudokuMedal;
 }
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -155,11 +182,28 @@ async function ensureSudokuTables(db: SQLite.SQLiteDatabase): Promise<void> {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS sudoku_completions (
+      completion_id TEXT PRIMARY KEY,
+      game_id TEXT NOT NULL UNIQUE,
+      difficulty TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      xp INTEGER NOT NULL,
+      elapsed_seconds INTEGER NOT NULL,
+      mistakes INTEGER NOT NULL,
+      hints_used INTEGER NOT NULL,
+      completed_at TEXT NOT NULL,
+      is_daily INTEGER NOT NULL,
+      medal TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS sudoku_moves_game_idx
       ON sudoku_moves(game_id, local_seq);
 
     CREATE INDEX IF NOT EXISTS sync_outbox_status_idx
       ON sync_outbox(status, created_at);
+
+    CREATE INDEX IF NOT EXISTS sudoku_completions_completed_idx
+      ON sudoku_completions(completed_at);
   `);
 }
 
@@ -334,6 +378,74 @@ export async function recordSudokuMove(input: RecordSudokuMoveInput): Promise<vo
       now,
     );
   });
+}
+
+export async function recordSudokuCompletion(
+  input: RecordSudokuCompletionInput,
+): Promise<RecordSudokuCompletionResult> {
+  const db = await getDatabase();
+  let result: RecordSudokuCompletionResult | null = null;
+
+  await runExclusiveWrite(db, async (tx) => {
+    const rows = await tx.getAllAsync<SudokuCompletionRow>(
+      `SELECT completion_id, game_id, difficulty, score, xp, elapsed_seconds, mistakes,
+              hints_used, completed_at, is_daily, medal
+       FROM sudoku_completions
+       ORDER BY completed_at ASC`,
+    );
+    const existingCompletions = rows.map(rowToSudokuCompletion);
+    const rewardResult = applyLocalSudokuCompletion(existingCompletions, input);
+
+    if (rewardResult.recorded) {
+      await tx.runAsync(
+        `INSERT INTO sudoku_completions (
+          completion_id,
+          game_id,
+          difficulty,
+          score,
+          xp,
+          elapsed_seconds,
+          mistakes,
+          hints_used,
+          completed_at,
+          is_daily,
+          medal
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        rewardResult.completion.completionId,
+        rewardResult.completion.gameId,
+        rewardResult.completion.difficulty,
+        rewardResult.completion.score,
+        rewardResult.completion.xp,
+        rewardResult.completion.elapsedSeconds,
+        rewardResult.completion.mistakes,
+        rewardResult.completion.hintsUsed,
+        rewardResult.completion.completedAt,
+        rewardResult.completion.isDaily ? 1 : 0,
+        rewardResult.completion.medal,
+      );
+    }
+
+    result = rewardResult;
+  });
+
+  if (result === null) {
+    throw new Error("Could not record Sudoku completion.");
+  }
+
+  return result;
+}
+
+export async function loadLocalSudokuProgress(): Promise<LoadLocalSudokuProgressResult> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<SudokuCompletionRow>(
+    `SELECT completion_id, game_id, difficulty, score, xp, elapsed_seconds, mistakes,
+            hints_used, completed_at, is_daily, medal
+     FROM sudoku_completions
+     ORDER BY completed_at ASC`,
+  );
+
+  return summarizeLocalSudokuProgress(rows.map(rowToSudokuCompletion));
 }
 
 export async function undoLastSudokuMove(
@@ -605,6 +717,22 @@ export async function getOrCreateDeviceId(): Promise<string> {
 
 function getGameStatus(state: SudokuState): "active" | "paused" | "completed" {
   return state.status;
+}
+
+function rowToSudokuCompletion(row: SudokuCompletionRow): LocalSudokuCompletion {
+  return {
+    completionId: row.completion_id,
+    gameId: row.game_id,
+    difficulty: row.difficulty,
+    score: row.score,
+    xp: row.xp,
+    elapsedSeconds: row.elapsed_seconds,
+    mistakes: row.mistakes,
+    hintsUsed: row.hints_used,
+    completedAt: row.completed_at,
+    isDaily: row.is_daily === 1,
+    medal: row.medal,
+  };
 }
 
 function mergeSudokuSnapshotState(current: SudokuState, incoming: SudokuState): SudokuState {
