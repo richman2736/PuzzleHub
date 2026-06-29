@@ -121,6 +121,8 @@ interface AppThemeColors {
   boardBorder: string;
   border: string;
   cell: string;
+  cellRelated: string;
+  cellSameDigit: string;
   error: string;
   givenCell: string;
   incorrectCell: string;
@@ -138,52 +140,56 @@ interface AppThemeColors {
 
 const appThemeColors: Record<ResolvedTheme, AppThemeColors> = {
   dark: {
-    accent: "#28a899",
+    accent: "#32b8a7",
     accentContrast: "#ffffff",
-    activeGame: "#e2bf61",
-    activeGameBorder: "#9f7e22",
-    activeGameText: "#172323",
-    background: "#0f1718",
-    boardBorder: "#d7e8e3",
-    border: "#2f4544",
-    cell: "#101b1d",
+    activeGame: "#d9b44a",
+    activeGameBorder: "#a27d1f",
+    activeGameText: "#151719",
+    background: "#0f1213",
+    boardBorder: "#e7ece9",
+    border: "#344246",
+    cell: "#101617",
+    cellRelated: "#1d2a2d",
+    cellSameDigit: "#2f4a41",
     error: "#f06f6c",
-    givenCell: "#1b2a2d",
+    givenCell: "#202b2f",
     incorrectCell: "#4a2428",
-    modalBackdrop: "rgba(4, 10, 12, 0.62)",
-    note: "#9db5b0",
-    offline: "#e2bf61",
-    pauseOverlay: "rgba(15, 23, 24, 0.92)",
-    selectedCell: "#153f3d",
-    surface: "#172323",
-    surfaceMuted: "#203033",
-    text: "#edf7f4",
-    textMuted: "#a8c1bb",
-    textSoft: "#87a09a",
+    modalBackdrop: "rgba(6, 8, 10, 0.64)",
+    note: "#9aa9a8",
+    offline: "#d9b44a",
+    pauseOverlay: "rgba(16, 19, 21, 0.92)",
+    selectedCell: "#255f58",
+    surface: "#171d1f",
+    surfaceMuted: "#20292c",
+    text: "#f2f5f2",
+    textMuted: "#aebbb7",
+    textSoft: "#7f8d8a",
   },
   light: {
-    accent: "#1f766d",
+    accent: "#206f66",
     accentContrast: "#ffffff",
-    activeGame: "#e9c46a",
-    activeGameBorder: "#c79b28",
-    activeGameText: "#183047",
-    background: "#eef2f0",
-    boardBorder: "#183047",
-    border: "#d9e2df",
-    cell: "#fbfdfc",
+    activeGame: "#dfb84d",
+    activeGameBorder: "#b58b24",
+    activeGameText: "#19232a",
+    background: "#f4f6f3",
+    boardBorder: "#1b2a32",
+    border: "#d6ded9",
+    cell: "#ffffff",
+    cellRelated: "#e6efeb",
+    cellSameDigit: "#dcebd6",
     error: "#c3423f",
-    givenCell: "#dfeae7",
+    givenCell: "#e7ece8",
     incorrectCell: "#f8d7d4",
-    modalBackdrop: "rgba(24, 48, 71, 0.38)",
-    note: "#52706e",
-    offline: "#7a5a10",
-    pauseOverlay: "rgba(251, 253, 252, 0.92)",
-    selectedCell: "#c9f2ea",
+    modalBackdrop: "rgba(25, 35, 42, 0.34)",
+    note: "#60706d",
+    offline: "#7f5f12",
+    pauseOverlay: "rgba(244, 246, 243, 0.92)",
+    selectedCell: "#bee7de",
     surface: "#ffffff",
-    surfaceMuted: "#eef2f0",
-    text: "#183047",
-    textMuted: "#52706e",
-    textSoft: "#6c7f7b",
+    surfaceMuted: "#edf1ee",
+    text: "#19232a",
+    textMuted: "#566765",
+    textSoft: "#72807b",
   },
 };
 
@@ -738,6 +744,8 @@ export default function App() {
       selectedCellValue,
     }),
   );
+  const firstDigitRow = digitButtonStates.slice(0, 5);
+  const secondDigitRow = digitButtonStates.slice(5);
   const personalRecordKeys =
     completionReward === null ? [] : getPersonalRecordKeys(completionReward.personalRecords);
   const unlockedAchievementKeys =
@@ -784,113 +792,124 @@ export default function App() {
       value: progressStats === null ? "..." : formatNumber(progressStats.longestStreak),
     },
   ];
+  const shouldShowStatusRow =
+    isOffline ||
+    storageError !== null ||
+    !isStorageReady ||
+    pendingSyncCount > 0 ||
+    syncStatus.hasConflict;
 
   return (
     <SafeAreaProvider>
       <SafeAreaView edges={["top", "bottom", "left", "right"]} style={styles.screen}>
         <StatusBar style={resolvedTheme === "dark" ? "light" : "dark"} />
         <View style={styles.playSurface} testID="sudoku-screen">
-          <View style={styles.topBar}>
-            <View>
-              <Text style={styles.brand}>{t("app.brand")}</Text>
-              <Text style={styles.subtitle}>{t("screen.dailySudoku")}</Text>
+          <View style={styles.gameHeader}>
+            <View style={styles.topBar}>
+              <View style={styles.titleBlock}>
+                <Text style={styles.subtitle}>{t("app.brand")}</Text>
+                <Text
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
+                  numberOfLines={1}
+                  style={styles.brand}
+                >
+                  {t("screen.dailySudoku")}
+                </Text>
+              </View>
+              <View style={[styles.iconRow, isDevelopmentBuild && styles.developmentIconRow]}>
+                <Pressable
+                  accessibilityLabel="Toggle pause"
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled: !isStorageReady || state.status === "completed",
+                  }}
+                  disabled={!isStorageReady || state.status === "completed"}
+                  hitSlop={iconButtonHitSlop}
+                  style={[styles.iconButton, !isStorageReady && styles.disabledControl]}
+                  testID="sudoku-pause-toggle"
+                  onPress={togglePause}
+                >
+                  <Ionicons
+                    name={state.status === "paused" ? "play" : "pause"}
+                    size={18}
+                    color={colors.text}
+                  />
+                </Pressable>
+                <Pressable
+                  accessibilityLabel={t("screen.progress")}
+                  accessibilityRole="button"
+                  hitSlop={iconButtonHitSlop}
+                  style={styles.iconButton}
+                  testID="sudoku-progress-open"
+                  onPress={() => setIsProgressVisible(true)}
+                >
+                  <Ionicons name="trophy-outline" size={18} color={colors.text} />
+                </Pressable>
+                <Pressable
+                  accessibilityLabel={t("settings.title")}
+                  accessibilityRole="button"
+                  hitSlop={iconButtonHitSlop}
+                  style={styles.iconButton}
+                  testID="sudoku-settings-open"
+                  onPress={() => setIsSettingsVisible(true)}
+                >
+                  <Ionicons name="settings-outline" size={18} color={colors.text} />
+                </Pressable>
+              </View>
             </View>
-            <View style={[styles.iconRow, isDevelopmentBuild && styles.developmentIconRow]}>
-              <Pressable
-                accessibilityLabel="Toggle pause"
-                accessibilityRole="button"
-                accessibilityState={{
-                  disabled: !isStorageReady || state.status === "completed",
-                }}
-                disabled={!isStorageReady || state.status === "completed"}
-                hitSlop={iconButtonHitSlop}
-                style={[styles.iconButton, !isStorageReady && styles.disabledControl]}
-                testID="sudoku-pause-toggle"
-                onPress={togglePause}
-              >
-                <Ionicons
-                  name={state.status === "paused" ? "play" : "pause"}
-                  size={18}
-                  color={colors.text}
-                />
-              </Pressable>
-              <Pressable
-                accessibilityLabel={t("screen.progress")}
-                accessibilityRole="button"
-                hitSlop={iconButtonHitSlop}
-                style={styles.iconButton}
-                testID="sudoku-progress-open"
-                onPress={() => setIsProgressVisible(true)}
-              >
-                <Ionicons name="trophy-outline" size={18} color={colors.text} />
-              </Pressable>
-              <Pressable
-                accessibilityLabel={t("games.title")}
-                accessibilityRole="button"
-                hitSlop={iconButtonHitSlop}
-                style={styles.iconButton}
-                testID="sudoku-game-menu-open"
-                onPress={() => setIsGameMenuVisible(true)}
-              >
-                <Ionicons name="grid-outline" size={18} color={colors.text} />
-              </Pressable>
-              <Pressable
-                accessibilityLabel={t("settings.title")}
-                accessibilityRole="button"
-                hitSlop={iconButtonHitSlop}
-                style={styles.iconButton}
-                testID="sudoku-settings-open"
-                onPress={() => setIsSettingsVisible(true)}
-              >
-                <Ionicons name="settings-outline" size={18} color={colors.text} />
-              </Pressable>
+
+            <View style={styles.statsRow}>
+              <Metric styles={styles} label={t("metric.score")} value={formatNumber(score.score)} />
+              <Metric
+                styles={styles}
+                label={t("metric.time")}
+                value={formatElapsedTime(state.elapsedSeconds)}
+              />
+              <Metric
+                styles={styles}
+                label={t("metric.mistakes")}
+                value={formatNumber(state.mistakes)}
+              />
+              <Metric
+                styles={styles}
+                label={t("metric.hints")}
+                value={formatNumber(state.hintsUsed)}
+              />
             </View>
-          </View>
 
-          <View style={styles.statsRow}>
-            <Metric styles={styles} label={t("metric.score")} value={formatNumber(score.score)} />
-            <Metric
-              styles={styles}
-              label={t("metric.time")}
-              value={formatElapsedTime(state.elapsedSeconds)}
-            />
-            <Metric
-              styles={styles}
-              label={t("metric.mistakes")}
-              value={formatNumber(state.mistakes)}
-            />
-            <Metric
-              styles={styles}
-              label={t("metric.hints")}
-              value={formatNumber(state.hintsUsed)}
-            />
-          </View>
-
-          <View style={styles.statusRow}>
-            {isOffline && (
-              <View style={styles.statusChip}>
-                <Ionicons name="cloud-offline-outline" size={14} color={colors.offline} />
-                <Text style={styles.offlineText}>{t("status.offline")}</Text>
+            {shouldShowStatusRow && (
+              <View style={styles.statusRow}>
+                {isOffline && (
+                  <View style={styles.statusChip}>
+                    <Ionicons name="cloud-offline-outline" size={14} color={colors.offline} />
+                    <Text style={styles.offlineText}>{t("status.offline")}</Text>
+                  </View>
+                )}
+                <View style={styles.statusChip}>
+                  <Ionicons
+                    name={storageError === null ? "phone-portrait-outline" : "alert-circle-outline"}
+                    size={14}
+                    color={storageError === null ? colors.accent : colors.error}
+                  />
+                  <Text
+                    style={[styles.storageText, storageError !== null && styles.storageErrorText]}
+                  >
+                    {storageError ?? (isStorageReady ? t("status.local") : t("status.loading"))}
+                  </Text>
+                </View>
+                {(pendingSyncCount > 0 || syncStatus.hasConflict) && (
+                  <View style={styles.statusChip}>
+                    <Ionicons
+                      name={pendingSyncCount === 0 ? "cloud-done-outline" : "cloud-upload-outline"}
+                      size={14}
+                      color={pendingSyncCount === 0 ? colors.accent : colors.textMuted}
+                    />
+                    <Text style={styles.storageText}>{syncStatusText}</Text>
+                  </View>
+                )}
               </View>
             )}
-            <View style={styles.statusChip}>
-              <Ionicons
-                name={storageError === null ? "phone-portrait-outline" : "alert-circle-outline"}
-                size={14}
-                color={storageError === null ? colors.accent : colors.error}
-              />
-              <Text style={[styles.storageText, storageError !== null && styles.storageErrorText]}>
-                {storageError ?? (isStorageReady ? t("status.local") : t("status.loading"))}
-              </Text>
-            </View>
-            <View style={styles.statusChip}>
-              <Ionicons
-                name={pendingSyncCount === 0 ? "cloud-done-outline" : "cloud-upload-outline"}
-                size={14}
-                color={pendingSyncCount === 0 ? colors.accent : colors.textMuted}
-              />
-              <Text style={styles.storageText}>{syncStatusText}</Text>
-            </View>
           </View>
 
           {syncStatus.hasConflict && (
@@ -908,178 +927,193 @@ export default function App() {
             </View>
           )}
 
-          <View style={styles.board} testID="sudoku-board">
-            {state.status === "paused" && (
-              <View style={styles.pauseOverlay}>
-                <Ionicons name="pause-circle" size={40} color={colors.text} />
-                <Text style={styles.pauseText}>{t("screen.paused")}</Text>
-              </View>
-            )}
-            {generated.puzzle.grid.map((row, rowIndex) =>
-              row.map((_, colIndex) => {
-                const value = state.grid[rowIndex]?.[colIndex] ?? 0;
-                const notes = state.notes[rowIndex]?.[colIndex] ?? [];
-                const cellUiState = getSudokuCellUiState({
-                  col: colIndex,
-                  givens: generated.puzzle.givens,
-                  incorrectCell,
-                  row: rowIndex,
-                  selectedCell,
-                });
-                return (
-                  <Pressable
-                    accessibilityLabel={cellUiState.accessibilityLabel}
-                    accessibilityRole="button"
-                    accessibilityState={{
-                      disabled: !isInteractionEnabled,
-                      selected: cellUiState.isSelected,
-                    }}
-                    key={`${rowIndex}-${colIndex}`}
-                    style={[
-                      styles.cell,
-                      cellUiState.isGiven && styles.givenCell,
-                      cellUiState.isSelected && styles.selectedCell,
-                      cellUiState.isIncorrect && styles.incorrectCell,
-                      colIndex % 3 === 2 && colIndex !== 8 && styles.boxRight,
-                      rowIndex % 3 === 2 && rowIndex !== 8 && styles.boxBottom,
-                    ]}
-                    disabled={!isInteractionEnabled}
-                    testID={cellUiState.testID}
-                    onPress={() => selectCell({ row: rowIndex, col: colIndex })}
-                  >
-                    {value === 0 ? (
-                      <NoteGrid styles={styles} notes={notes} />
-                    ) : (
-                      <Text style={[styles.cellText, cellUiState.isGiven && styles.givenText]}>
-                        {value}
-                      </Text>
-                    )}
-                    {cellUiState.isIncorrect && (
-                      <View style={styles.incorrectBadge}>
-                        <Ionicons name="alert" size={10} color={colors.accentContrast} />
-                      </View>
-                    )}
-                  </Pressable>
-                );
-              }),
-            )}
+          <View style={styles.boardShell}>
+            <View style={styles.board} testID="sudoku-board">
+              {state.status === "paused" && (
+                <View style={styles.pauseOverlay}>
+                  <Ionicons name="pause-circle" size={40} color={colors.text} />
+                  <Text style={styles.pauseText}>{t("screen.paused")}</Text>
+                </View>
+              )}
+              {generated.puzzle.grid.map((row, rowIndex) =>
+                row.map((_, colIndex) => {
+                  const value = state.grid[rowIndex]?.[colIndex] ?? 0;
+                  const notes = state.notes[rowIndex]?.[colIndex] ?? [];
+                  const cellUiState = getSudokuCellUiState({
+                    col: colIndex,
+                    givens: generated.puzzle.givens,
+                    grid: state.grid,
+                    incorrectCell,
+                    row: rowIndex,
+                    selectedCell,
+                  });
+                  return (
+                    <Pressable
+                      accessibilityLabel={cellUiState.accessibilityLabel}
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        disabled: !isInteractionEnabled,
+                        selected: cellUiState.isSelected,
+                      }}
+                      key={`${rowIndex}-${colIndex}`}
+                      style={[
+                        styles.cell,
+                        cellUiState.isGiven && styles.givenCell,
+                        cellUiState.isRelated && styles.relatedCell,
+                        cellUiState.isSameDigit && styles.sameDigitCell,
+                        cellUiState.isSelected && styles.selectedCell,
+                        cellUiState.isIncorrect && styles.incorrectCell,
+                        colIndex % 3 === 2 && colIndex !== 8 && styles.boxRight,
+                        rowIndex % 3 === 2 && rowIndex !== 8 && styles.boxBottom,
+                      ]}
+                      disabled={!isInteractionEnabled}
+                      testID={cellUiState.testID}
+                      onPress={() => selectCell({ row: rowIndex, col: colIndex })}
+                    >
+                      {value === 0 ? (
+                        <NoteGrid styles={styles} notes={notes} />
+                      ) : (
+                        <Text style={[styles.cellText, cellUiState.isGiven && styles.givenText]}>
+                          {value}
+                        </Text>
+                      )}
+                      {cellUiState.isIncorrect && (
+                        <View style={styles.incorrectBadge}>
+                          <Ionicons name="alert" size={10} color={colors.accentContrast} />
+                        </View>
+                      )}
+                    </Pressable>
+                  );
+                }),
+              )}
+            </View>
           </View>
 
-          <View style={styles.inputModeRow}>
-            <Pressable
-              accessibilityLabel={t("mode.answer")}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !isInteractionEnabled, selected: !isNoteMode }}
-              disabled={!isInteractionEnabled}
-              style={[
-                styles.modeButton,
-                !isNoteMode && styles.activeModeButton,
-                !isInteractionEnabled && styles.disabledControl,
-              ]}
-              testID="sudoku-mode-answer"
-              onPress={() => setIsNoteMode(false)}
-            >
-              <Ionicons
-                name="keypad-outline"
-                size={16}
-                color={isNoteMode ? colors.textMuted : colors.accentContrast}
-              />
-              <Text style={[styles.modeButtonText, !isNoteMode && styles.activeModeButtonText]}>
-                {t("mode.answer")}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel={t("mode.notes")}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !isInteractionEnabled, selected: isNoteMode }}
-              disabled={!isInteractionEnabled}
-              style={[
-                styles.modeButton,
-                isNoteMode && styles.activeModeButton,
-                !isInteractionEnabled && styles.disabledControl,
-              ]}
-              testID="sudoku-mode-notes"
-              onPress={() => setIsNoteMode(true)}
-            >
-              <Ionicons
-                name="pencil-outline"
-                size={16}
-                color={isNoteMode ? colors.accentContrast : colors.textMuted}
-              />
-              <Text style={[styles.modeButtonText, isNoteMode && styles.activeModeButtonText]}>
-                {t("mode.notes")}
-              </Text>
-            </Pressable>
-          </View>
+          <View style={styles.controlDeck}>
+            <View style={styles.inputModeRow}>
+              <Pressable
+                accessibilityLabel={t("mode.answer")}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !isInteractionEnabled, selected: !isNoteMode }}
+                disabled={!isInteractionEnabled}
+                style={[
+                  styles.modeButton,
+                  !isNoteMode && styles.activeModeButton,
+                  !isInteractionEnabled && styles.disabledControl,
+                ]}
+                testID="sudoku-mode-answer"
+                onPress={() => setIsNoteMode(false)}
+              >
+                <Ionicons
+                  name="keypad-outline"
+                  size={16}
+                  color={isNoteMode ? colors.textMuted : colors.accentContrast}
+                />
+                <Text style={[styles.modeButtonText, !isNoteMode && styles.activeModeButtonText]}>
+                  {t("mode.answer")}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel={t("mode.notes")}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !isInteractionEnabled, selected: isNoteMode }}
+                disabled={!isInteractionEnabled}
+                style={[
+                  styles.modeButton,
+                  isNoteMode && styles.activeModeButton,
+                  !isInteractionEnabled && styles.disabledControl,
+                ]}
+                testID="sudoku-mode-notes"
+                onPress={() => setIsNoteMode(true)}
+              >
+                <Ionicons
+                  name="pencil-outline"
+                  size={16}
+                  color={isNoteMode ? colors.accentContrast : colors.textMuted}
+                />
+                <Text style={[styles.modeButtonText, isNoteMode && styles.activeModeButtonText]}>
+                  {t("mode.notes")}
+                </Text>
+              </Pressable>
+            </View>
 
-          <View style={styles.numberRail}>
-            {digitButtonStates.map(
-              ({ accessibilityLabel, digit, isActiveDigit, isComplete, testID }) => {
-                return (
-                  <Pressable
-                    accessibilityLabel={accessibilityLabel}
-                    accessibilityRole="button"
-                    accessibilityState={{
-                      disabled: !isInteractionEnabled || isComplete,
-                      selected: isActiveDigit,
-                    }}
-                    disabled={!isInteractionEnabled || isComplete}
-                    key={digit}
-                    style={[
-                      styles.numberButton,
-                      isActiveDigit && styles.activeNumberButton,
-                      isComplete && styles.completeNumberButton,
-                      (!isInteractionEnabled || isComplete) && styles.disabledControl,
-                    ]}
-                    testID={testID}
-                    onPress={() => playDigit(digit)}
-                  >
-                    <Text style={[styles.numberText, isActiveDigit && styles.activeNumberText]}>
-                      {digit}
-                    </Text>
-                  </Pressable>
-                );
-              },
-            )}
-          </View>
+            <View style={styles.numberPad}>
+              {[firstDigitRow, secondDigitRow].map((row, rowIndex) => (
+                <View key={rowIndex} style={styles.numberPadRow}>
+                  {row.map(({ accessibilityLabel, digit, isActiveDigit, isComplete, testID }) => {
+                    return (
+                      <Pressable
+                        accessibilityLabel={accessibilityLabel}
+                        accessibilityRole="button"
+                        accessibilityState={{
+                          disabled: !isInteractionEnabled || isComplete,
+                          selected: isActiveDigit,
+                        }}
+                        disabled={!isInteractionEnabled || isComplete}
+                        key={digit}
+                        style={[
+                          styles.numberButton,
+                          isActiveDigit && styles.activeNumberButton,
+                          isComplete && styles.completeNumberButton,
+                          (!isInteractionEnabled || isComplete) && styles.disabledControl,
+                        ]}
+                        testID={testID}
+                        onPress={() => playDigit(digit)}
+                      >
+                        <Text style={[styles.numberText, isActiveDigit && styles.activeNumberText]}>
+                          {digit}
+                        </Text>
+                        {isActiveDigit && <View style={styles.numberActiveIndicator} />}
+                      </Pressable>
+                    );
+                  })}
+                  {rowIndex === 1 && (
+                    <Pressable
+                      accessibilityLabel={t("action.erase")}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: !isInteractionEnabled }}
+                      disabled={!isInteractionEnabled}
+                      style={[
+                        styles.numberButton,
+                        styles.numberActionButton,
+                        !isInteractionEnabled && styles.disabledControl,
+                      ]}
+                      testID="sudoku-action-erase"
+                      onPress={eraseSelectedCell}
+                    >
+                      <Ionicons name="backspace-outline" size={22} color={colors.text} />
+                    </Pressable>
+                  )}
+                </View>
+              ))}
+            </View>
 
-          <View style={styles.actionRow}>
-            <Pressable
-              accessibilityLabel={t("action.hint")}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !isInteractionEnabled }}
-              disabled={!isInteractionEnabled}
-              style={[styles.primaryButton, !isInteractionEnabled && styles.disabledControl]}
-              testID="sudoku-action-hint"
-              onPress={useHint}
-            >
-              <Ionicons name="sparkles-outline" size={18} color={colors.accentContrast} />
-              <Text style={styles.primaryButtonText}>{t("action.hint")}</Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel={t("action.undo")}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !isInteractionEnabled }}
-              disabled={!isInteractionEnabled}
-              style={[styles.secondaryButton, !isInteractionEnabled && styles.disabledControl]}
-              testID="sudoku-action-undo"
-              onPress={undoMove}
-            >
-              <Ionicons name="arrow-undo-outline" size={18} color={colors.text} />
-              <Text style={styles.secondaryButtonText}>{t("action.undo")}</Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel={t("action.erase")}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !isInteractionEnabled }}
-              disabled={!isInteractionEnabled}
-              style={[styles.secondaryButton, !isInteractionEnabled && styles.disabledControl]}
-              testID="sudoku-action-erase"
-              onPress={eraseSelectedCell}
-            >
-              <Ionicons name="backspace-outline" size={18} color={colors.text} />
-              <Text style={styles.secondaryButtonText}>{t("action.erase")}</Text>
-            </Pressable>
+            <View style={styles.actionRow}>
+              <Pressable
+                accessibilityLabel={t("action.hint")}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !isInteractionEnabled }}
+                disabled={!isInteractionEnabled}
+                style={[styles.primaryButton, !isInteractionEnabled && styles.disabledControl]}
+                testID="sudoku-action-hint"
+                onPress={useHint}
+              >
+                <Ionicons name="sparkles-outline" size={18} color={colors.accentContrast} />
+                <Text style={styles.primaryButtonText}>{t("action.hint")}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel={t("action.undo")}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !isInteractionEnabled }}
+                disabled={!isInteractionEnabled}
+                style={[styles.secondaryButton, !isInteractionEnabled && styles.disabledControl]}
+                testID="sudoku-action-undo"
+                onPress={undoMove}
+              >
+                <Ionicons name="arrow-undo-outline" size={18} color={colors.text} />
+                <Text style={styles.secondaryButtonText}>{t("action.undo")}</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
         <Modal
@@ -1360,6 +1394,19 @@ export default function App() {
                 <Ionicons name="refresh" size={18} color={colors.text} />
               </Pressable>
               <Pressable
+                accessibilityLabel={t("games.title")}
+                accessibilityRole="button"
+                style={styles.gameMenuItem}
+                testID="sudoku-settings-games"
+                onPress={() => {
+                  setIsSettingsVisible(false);
+                  setIsGameMenuVisible(true);
+                }}
+              >
+                <Text style={styles.gameMenuItemText}>{t("games.title")}</Text>
+                <Ionicons name="grid-outline" size={18} color={colors.text} />
+              </Pressable>
+              <Pressable
                 accessibilityRole="button"
                 style={styles.modalSecondaryButton}
                 testID="sudoku-settings-close"
@@ -1546,49 +1593,64 @@ function createStyles(colors: AppThemeColors) {
     },
     playSurface: {
       flex: 1,
-      gap: 8,
-      justifyContent: "flex-start",
-      paddingBottom: 8,
-      paddingHorizontal: 20,
+      gap: 9,
+      justifyContent: "space-between",
+      paddingBottom: 12,
+      paddingHorizontal: 18,
       paddingTop: 8,
+    },
+    gameHeader: {
+      gap: 7,
     },
     topBar: {
       alignItems: "center",
       flexDirection: "row",
       justifyContent: "space-between",
     },
+    titleBlock: {
+      flex: 1,
+      minWidth: 0,
+      paddingRight: 12,
+    },
     brand: {
       color: colors.text,
-      fontSize: 25,
+      fontSize: 20,
       fontWeight: "800",
       letterSpacing: 0,
     },
     subtitle: {
       color: colors.textMuted,
-      fontSize: 13,
-      fontWeight: "600",
-      marginTop: 2,
+      fontSize: 10,
+      fontWeight: "800",
+      letterSpacing: 0,
+      textTransform: "uppercase",
     },
     iconRow: {
       flexDirection: "row",
-      gap: 8,
+      gap: 6,
     },
     developmentIconRow: {
-      marginRight: 92,
+      marginRight: 82,
     },
     iconButton: {
       alignItems: "center",
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceMuted,
       borderColor: colors.border,
       borderRadius: 8,
       borderWidth: 1,
-      height: 36,
+      height: 30,
       justifyContent: "center",
-      width: 36,
+      width: 30,
     },
     statsRow: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.surfaceMuted,
+      borderRadius: 8,
+      borderWidth: 1,
       flexDirection: "row",
-      gap: 8,
+      gap: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 5,
     },
     statusRow: {
       alignItems: "center",
@@ -1648,20 +1710,27 @@ function createStyles(colors: AppThemeColors) {
     metric: {
       alignItems: "center",
       flex: 1,
-      minHeight: 34,
       justifyContent: "center",
+      minHeight: 31,
     },
     metricValue: {
       color: colors.text,
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: "800",
       letterSpacing: 0,
     },
     metricLabel: {
       color: colors.textSoft,
-      fontSize: 10,
+      fontSize: 9,
       fontWeight: "700",
       marginTop: 1,
+    },
+    boardShell: {
+      alignItems: "center",
+      flex: 1,
+      justifyContent: "center",
+      minHeight: 0,
+      width: "100%",
     },
     board: {
       alignSelf: "center",
@@ -1707,8 +1776,16 @@ function createStyles(colors: AppThemeColors) {
     givenCell: {
       backgroundColor: colors.givenCell,
     },
+    relatedCell: {
+      backgroundColor: colors.cellRelated,
+    },
+    sameDigitCell: {
+      backgroundColor: colors.cellSameDigit,
+    },
     selectedCell: {
       backgroundColor: colors.selectedCell,
+      borderColor: colors.accent,
+      borderWidth: 1,
     },
     incorrectCell: {
       backgroundColor: colors.incorrectCell,
@@ -1734,8 +1811,8 @@ function createStyles(colors: AppThemeColors) {
     },
     cellText: {
       color: colors.accent,
-      fontSize: 20,
-      fontWeight: "700",
+      fontSize: 22,
+      fontWeight: "800",
       letterSpacing: 0,
     },
     givenText: {
@@ -1756,10 +1833,15 @@ function createStyles(colors: AppThemeColors) {
     },
     noteText: {
       color: colors.note,
-      fontSize: 8,
+      fontSize: 9,
       fontWeight: "700",
       letterSpacing: 0,
       lineHeight: 9,
+    },
+    controlDeck: {
+      gap: 8,
+      paddingHorizontal: 0,
+      width: "100%",
     },
     inputModeRow: {
       backgroundColor: colors.surface,
@@ -1776,7 +1858,7 @@ function createStyles(colors: AppThemeColors) {
       flexDirection: "row",
       gap: 6,
       justifyContent: "center",
-      minHeight: 32,
+      minHeight: 34,
     },
     activeModeButton: {
       backgroundColor: colors.accent,
@@ -1790,25 +1872,30 @@ function createStyles(colors: AppThemeColors) {
     activeModeButtonText: {
       color: colors.accentContrast,
     },
-    numberRail: {
+    numberPad: {
+      gap: 6,
+    },
+    numberPadRow: {
       flexDirection: "row",
-      gap: 5,
-      justifyContent: "space-between",
+      gap: 6,
     },
     numberButton: {
       alignItems: "center",
-      aspectRatio: 1,
       backgroundColor: colors.surface,
       borderColor: colors.border,
       borderRadius: 8,
       borderWidth: 1,
       flex: 1,
       justifyContent: "center",
+      minHeight: 46,
       position: "relative",
     },
     activeNumberButton: {
-      backgroundColor: colors.accent,
+      backgroundColor: colors.surfaceMuted,
       borderColor: colors.accent,
+    },
+    numberActionButton: {
+      backgroundColor: colors.surfaceMuted,
     },
     completeNumberButton: {
       backgroundColor: colors.surfaceMuted,
@@ -1821,9 +1908,18 @@ function createStyles(colors: AppThemeColors) {
       fontSize: 18,
       fontWeight: "800",
       letterSpacing: 0,
+      lineHeight: 21,
     },
     activeNumberText: {
-      color: colors.accentContrast,
+      color: colors.accent,
+    },
+    numberActiveIndicator: {
+      backgroundColor: colors.accent,
+      borderRadius: 2,
+      bottom: 7,
+      height: 3,
+      position: "absolute",
+      width: 16,
     },
     actionRow: {
       flexDirection: "row",
@@ -1836,10 +1932,10 @@ function createStyles(colors: AppThemeColors) {
       borderRadius: 8,
       flex: 1,
       flexDirection: "row",
-      gap: 4,
+      gap: 6,
       justifyContent: "center",
       minWidth: 0,
-      minHeight: 40,
+      minHeight: 42,
       paddingHorizontal: 4,
     },
     primaryButtonText: {
@@ -1856,10 +1952,10 @@ function createStyles(colors: AppThemeColors) {
       borderWidth: 1,
       flex: 1,
       flexDirection: "row",
-      gap: 4,
+      gap: 6,
       justifyContent: "center",
       minWidth: 0,
-      minHeight: 40,
+      minHeight: 42,
       paddingHorizontal: 4,
     },
     secondaryButtonText: {
@@ -1878,15 +1974,17 @@ function createStyles(colors: AppThemeColors) {
     completionModal: {
       alignItems: "center",
       backgroundColor: colors.surface,
+      borderColor: colors.border,
       borderRadius: 8,
-      gap: 14,
+      borderWidth: 1,
+      gap: 12,
       maxWidth: 360,
-      padding: 20,
+      padding: 18,
       width: "100%",
     },
     completionTitle: {
       color: colors.text,
-      fontSize: 24,
+      fontSize: 22,
       fontWeight: "800",
       letterSpacing: 0,
     },
@@ -1897,7 +1995,9 @@ function createStyles(colors: AppThemeColors) {
       width: "100%",
     },
     completionStat: {
-      backgroundColor: colors.surfaceMuted,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderWidth: 1,
       borderRadius: 8,
       flexBasis: "47%",
       flexGrow: 1,
@@ -1937,7 +2037,7 @@ function createStyles(colors: AppThemeColors) {
       gap: 6,
     },
     rewardChip: {
-      backgroundColor: colors.selectedCell,
+      backgroundColor: colors.cellSameDigit,
       borderColor: colors.accent,
       borderRadius: 8,
       borderWidth: 1,
@@ -1973,7 +2073,7 @@ function createStyles(colors: AppThemeColors) {
     },
     modalSecondaryButton: {
       alignItems: "center",
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceMuted,
       borderColor: colors.border,
       borderRadius: 8,
       borderWidth: 1,
@@ -1989,7 +2089,9 @@ function createStyles(colors: AppThemeColors) {
     },
     gameMenuModal: {
       backgroundColor: colors.surface,
+      borderColor: colors.border,
       borderRadius: 8,
+      borderWidth: 1,
       gap: 14,
       maxWidth: 360,
       padding: 18,

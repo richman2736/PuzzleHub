@@ -1,4 +1,4 @@
-appId: app.puzzlehub.mobile.dev
+appId: app.puzzlehub.mobile
 ---
 - launchApp
 - assertVisible:
@@ -37,7 +37,11 @@ appId: app.puzzlehub.mobile.dev
     id: sudoku-action-erase
 
 - tapOn:
-    id: sudoku-game-menu-open
+    id: sudoku-settings-open
+- assertVisible:
+    id: sudoku-settings-modal
+- tapOn:
+    id: sudoku-settings-games
 - assertVisible:
     id: sudoku-game-menu-modal
 - tapOn:

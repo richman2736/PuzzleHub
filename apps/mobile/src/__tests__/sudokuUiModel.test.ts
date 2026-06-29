@@ -7,6 +7,7 @@ import {
 } from "../sudokuUiModel";
 
 const emptyGivens = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => false));
+const emptyGrid: SudokuGrid = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => 0));
 
 describe("deriveSudokuSyncStatus", () => {
   it("prioritises conflicts over pending and offline state", () => {
@@ -38,13 +39,14 @@ describe("deriveSudokuSyncStatus", () => {
 });
 
 describe("sudoku UI model", () => {
-  it("marks only the selected cell, not the whole row, column, or box", () => {
+  it("marks selected and related row, column, and box cells", () => {
     const selectedCell = { row: 4, col: 4 };
 
     expect(
       getSudokuCellUiState({
         col: 4,
         givens: emptyGivens,
+        grid: emptyGrid,
         incorrectCell: null,
         row: 4,
         selectedCell,
@@ -54,28 +56,76 @@ describe("sudoku UI model", () => {
       getSudokuCellUiState({
         col: 1,
         givens: emptyGivens,
+        grid: emptyGrid,
         incorrectCell: null,
         row: 4,
         selectedCell,
-      }).isSelected,
-    ).toBe(false);
+      }).isRelated,
+    ).toBe(true);
     expect(
       getSudokuCellUiState({
         col: 4,
         givens: emptyGivens,
+        grid: emptyGrid,
         incorrectCell: null,
         row: 1,
         selectedCell,
-      }).isSelected,
-    ).toBe(false);
+      }).isRelated,
+    ).toBe(true);
     expect(
       getSudokuCellUiState({
         col: 3,
         givens: emptyGivens,
+        grid: emptyGrid,
         incorrectCell: null,
         row: 3,
         selectedCell,
-      }).isSelected,
+      }).isRelated,
+    ).toBe(true);
+    expect(
+      getSudokuCellUiState({
+        col: 0,
+        givens: emptyGivens,
+        grid: emptyGrid,
+        incorrectCell: null,
+        row: 0,
+        selectedCell,
+      }).isRelated,
+    ).toBe(false);
+  });
+
+  it("marks matching digits when a filled cell is selected", () => {
+    const grid: SudokuGrid = [
+      [5, 0, 0, 0, 0, 0, 0, 0, 5],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 5, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [5, 0, 0, 0, 0, 0, 0, 0, 0],
+    ];
+
+    expect(
+      getSudokuCellUiState({
+        col: 8,
+        givens: emptyGivens,
+        grid,
+        incorrectCell: null,
+        row: 0,
+        selectedCell: { row: 4, col: 4 },
+      }).isSameDigit,
+    ).toBe(true);
+    expect(
+      getSudokuCellUiState({
+        col: 4,
+        givens: emptyGivens,
+        grid,
+        incorrectCell: null,
+        row: 4,
+        selectedCell: { row: 4, col: 4 },
+      }).isSameDigit,
     ).toBe(false);
   });
 
@@ -86,6 +136,7 @@ describe("sudoku UI model", () => {
       getSudokuCellUiState({
         col: 0,
         givens: emptyGivens,
+        grid: emptyGrid,
         incorrectCell,
         row: 8,
         selectedCell: null,
@@ -95,6 +146,7 @@ describe("sudoku UI model", () => {
       getSudokuCellUiState({
         col: 1,
         givens: emptyGivens,
+        grid: emptyGrid,
         incorrectCell,
         row: 8,
         selectedCell: null,
@@ -106,6 +158,7 @@ describe("sudoku UI model", () => {
     const cellState = getSudokuCellUiState({
       col: 6,
       givens: emptyGivens,
+      grid: emptyGrid,
       incorrectCell: null,
       row: 2,
       selectedCell: null,

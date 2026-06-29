@@ -60,6 +60,92 @@ server request.
 The player can also open a local progress view from the Sudoku screen to see
 total games, XP, records, streaks, and locked or unlocked achievements.
 
+## Visual Quality Sprint 1
+
+Status: implemented for the first board interaction and visual hierarchy pass
+Goal: make the Sudoku screen feel like a calm, premium daily puzzle experience
+before the next TestFlight build.
+
+This sprint should improve visual quality without adding new product scope.
+Sudoku remains the focus, and the board should feel like the primary object on
+the screen.
+
+### Direction
+
+- Calm premium daily puzzle.
+- Less dashboard, less technical surface.
+- The Sudoku board is the visual anchor.
+- Controls should feel native, touch-friendly, and quiet.
+- Progress and settings should remain available, but not compete with gameplay.
+
+### Priorities
+
+1. Improve board interaction quality:
+   - selected cell
+   - related row, column, and box highlight
+   - same-number highlight
+   - clearer given/input/notes contrast
+   - calmer incorrect-cell feedback
+2. Refine visual hierarchy:
+   - smaller header
+   - more discreet stats
+   - less dominant trophy/settings controls
+   - no normal sync/status noise unless the player needs to know
+3. Lighten the bottom control area:
+   - keep the 2-row number pad
+   - reduce heavy panel framing
+   - make hint, undo, notes, and erase feel polished rather than utilitarian
+   - preserve one-handed thumb usability
+4. Improve theme tokens:
+   - add explicit tokens for selected, related, same-digit, pressed, raised,
+     success, warning, and danger states
+   - avoid a one-note teal interface
+   - make dark mode premium, but consider light mode as the default feel later
+5. Screenshot-review loop:
+   - take simulator screenshots after each meaningful visual pass
+   - review dark mode first
+   - check light mode before TestFlight
+   - verify that text and controls do not overlap on the iPhone simulator
+
+### Definition Of Done
+
+- The main Sudoku screen looks polished enough for TestFlight review.
+- Empty space is intentional, not leftover.
+- The board is easier to scan because selected, related, and same-number cells
+  are visually distinct.
+- The bottom controls feel lighter while remaining easy to tap.
+- A fresh simulator screenshot is attached to the implementation summary.
+
+### Implemented In First Pass
+
+- Added selected, related row/column/box, and same-number cell states to the
+  mobile Sudoku UI model.
+- Added tests for related-cell and same-number highlighting.
+- Applied the new board states in the mobile Sudoku board.
+- Reduced normal technical status noise on the main screen.
+- Reduced top header/control weight.
+- Lightened the bottom control area while keeping the 2-row number pad.
+
+### Implemented In Second Pass
+
+- Increased dark-mode related-cell and same-number highlight contrast.
+- Added a subtle selected-cell outline.
+- Reduced header, icon, and stats visual weight further.
+- Tuned the dark palette away from a flat teal-heavy interface.
+- Confirmed the large floating gear in simulator screenshots is the Expo
+  development menu overlay, not production app UI.
+
+### Implemented In QA Polish Pass
+
+- Checked light mode from the simulator by switching the local app theme
+  preference.
+- Updated the Maestro smoke flow to match the current native bundle id and the
+  new settings-to-game-menu route.
+- Gave completion, progress, settings, and game-menu modals the same calmer
+  bordered surface treatment as the main screen.
+- Verified Maestro with Homebrew OpenJDK 17 and ran the mobile Sudoku smoke
+  flow successfully.
+
 ## Local Data Model
 
 Add local storage for completion history, for example a `sudoku_completions`

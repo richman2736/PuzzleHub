@@ -9,7 +9,7 @@ if [ -z "${JAVA_HOME:-}" ]; then
   fi
 
   if [ -z "$detected_java_home" ] && command -v brew >/dev/null 2>&1; then
-    for formula in openjdk openjdk@17; do
+    for formula in openjdk@17 openjdk; do
       formula_prefix=$(brew --prefix "$formula" 2>/dev/null || true)
       formula_home="$formula_prefix/libexec/openjdk.jdk/Contents/Home"
 

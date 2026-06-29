@@ -10,6 +10,8 @@ export interface SudokuCellUiState {
   accessibilityLabel: string;
   isGiven: boolean;
   isIncorrect: boolean;
+  isRelated: boolean;
+  isSameDigit: boolean;
   isSelected: boolean;
   testID: string;
 }
@@ -72,21 +74,37 @@ export function getSudokuDigitTestID(digit: SudokuDigit): string {
 export function getSudokuCellUiState({
   col,
   givens,
+  grid,
   incorrectCell,
   row,
   selectedCell,
 }: {
   col: number;
   givens: boolean[][];
+  grid: SudokuGrid;
   incorrectCell: SudokuCellPosition | null;
   row: number;
   selectedCell: SudokuCellPosition | null;
 }): SudokuCellUiState {
+  const isSelected = selectedCell?.row === row && selectedCell.col === col;
+  const isRelated =
+    selectedCell !== null &&
+    !isSelected &&
+    (selectedCell.row === row ||
+      selectedCell.col === col ||
+      (Math.floor(selectedCell.row / 3) === Math.floor(row / 3) &&
+        Math.floor(selectedCell.col / 3) === Math.floor(col / 3)));
+  const selectedValue =
+    selectedCell === null ? 0 : (grid[selectedCell.row]?.[selectedCell.col] ?? 0);
+  const value = grid[row]?.[col] ?? 0;
+
   return {
     accessibilityLabel: `Sudoku cell ${row + 1} ${col + 1}`,
     isGiven: givens[row]?.[col] ?? false,
     isIncorrect: incorrectCell?.row === row && incorrectCell.col === col,
-    isSelected: selectedCell?.row === row && selectedCell.col === col,
+    isRelated,
+    isSameDigit: selectedValue !== 0 && value === selectedValue && !isSelected,
+    isSelected,
     testID: getSudokuCellTestID(row, col),
   };
 }
