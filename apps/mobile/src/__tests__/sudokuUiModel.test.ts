@@ -154,6 +154,33 @@ describe("sudoku UI model", () => {
     ).toBe(false);
   });
 
+  it("keeps correct feedback scoped to the current confirmed cell", () => {
+    const correctFeedbackCell = { row: 2, col: 7 };
+
+    expect(
+      getSudokuCellUiState({
+        col: 7,
+        correctFeedbackCell,
+        givens: emptyGivens,
+        grid: emptyGrid,
+        incorrectCell: null,
+        row: 2,
+        selectedCell: null,
+      }).isCorrectFeedback,
+    ).toBe(true);
+    expect(
+      getSudokuCellUiState({
+        col: 6,
+        correctFeedbackCell,
+        givens: emptyGivens,
+        grid: emptyGrid,
+        incorrectCell: null,
+        row: 2,
+        selectedCell: null,
+      }).isCorrectFeedback,
+    ).toBe(false);
+  });
+
   it("builds stable cell automation ids", () => {
     const cellState = getSudokuCellUiState({
       col: 6,

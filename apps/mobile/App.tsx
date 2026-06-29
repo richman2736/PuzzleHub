@@ -123,6 +123,8 @@ interface AppThemeColors {
   cell: string;
   cellRelated: string;
   cellSameDigit: string;
+  correctFeedbackCell: string;
+  correctFeedbackBorder: string;
   error: string;
   givenCell: string;
   incorrectCell: string;
@@ -151,6 +153,8 @@ const appThemeColors: Record<ResolvedTheme, AppThemeColors> = {
     cell: "#101617",
     cellRelated: "#1d2a2d",
     cellSameDigit: "#2f4a41",
+    correctFeedbackBorder: "#32b8a7",
+    correctFeedbackCell: "#1f4f49",
     error: "#f06f6c",
     givenCell: "#202b2f",
     incorrectCell: "#4a2428",
@@ -177,6 +181,8 @@ const appThemeColors: Record<ResolvedTheme, AppThemeColors> = {
     cell: "#ffffff",
     cellRelated: "#e6efeb",
     cellSameDigit: "#dcebd6",
+    correctFeedbackBorder: "#206f66",
+    correctFeedbackCell: "#d9f1ec",
     error: "#c3423f",
     givenCell: "#e7ece8",
     incorrectCell: "#f8d7d4",
@@ -204,7 +210,7 @@ const resolveThemePreference = (
   return preference;
 };
 
-interface IncorrectCell extends SudokuCellPosition {
+interface TimedCellFeedback extends SudokuCellPosition {
   id: number;
 }
 
@@ -229,7 +235,8 @@ export default function App() {
   const gameId = dailySudoku.gameId;
   const [state, setState] = useState(() => createInitialSudokuState(generated.puzzle));
   const [selectedCell, setSelectedCell] = useState<SudokuCellPosition | null>(null);
-  const [incorrectCell, setIncorrectCell] = useState<IncorrectCell | null>(null);
+  const [incorrectCell, setIncorrectCell] = useState<TimedCellFeedback | null>(null);
+  const [correctFeedbackCell, setCorrectFeedbackCell] = useState<TimedCellFeedback | null>(null);
   const [isNoteMode, setIsNoteMode] = useState(false);
   const [isCompletionVisible, setIsCompletionVisible] = useState(false);
   const [completionReward, setCompletionReward] = useState<RecordSudokuCompletionResult | null>(
@@ -394,6 +401,20 @@ export default function App() {
   }, [incorrectCell]);
 
   useEffect(() => {
+    if (correctFeedbackCell === null) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setCorrectFeedbackCell((current) =>
+        current?.id === correctFeedbackCell.id ? null : current,
+      );
+    }, 180);
+
+    return () => clearTimeout(timeout);
+  }, [correctFeedbackCell]);
+
+  useEffect(() => {
     if (!isStorageReady || state.status !== "active") {
       return;
     }
@@ -517,6 +538,7 @@ export default function App() {
       }
 
       setIncorrectCell(null);
+      setCorrectFeedbackCell(null);
       triggerSelectionHaptic();
       setState(result.state);
       persistMove({
@@ -530,11 +552,13 @@ export default function App() {
       return;
     }
 
-    const result = applySudokuMove(generated.puzzle, generated.solution, state, {
+    const move = {
       ...selectedCell,
       value: digit,
-      mode: "answer",
-    });
+      mode: "answer" as const,
+    };
+    const wasEmptyCell = state.grid[selectedCell.row]?.[selectedCell.col] === 0;
+    const result = applySudokuMove(generated.puzzle, generated.solution, state, move);
 
     setState(result.state);
 
@@ -543,11 +567,7 @@ export default function App() {
         gameId,
         puzzle: generated.puzzle,
         nextState: result.state,
-        move: {
-          ...selectedCell,
-          value: digit,
-          mode: "answer",
-        },
+        move,
         accepted: result.accepted,
         action: "answer",
       };
@@ -565,6 +585,7 @@ export default function App() {
     }
 
     if (result.correct === false) {
+      setCorrectFeedbackCell(null);
       setIncorrectCell({
         ...selectedCell,
         id: Date.now(),
@@ -573,6 +594,14 @@ export default function App() {
     }
 
     setIncorrectCell(null);
+    if (result.correct === true && wasEmptyCell) {
+      setCorrectFeedbackCell({
+        ...selectedCell,
+        id: Date.now(),
+      });
+    } else {
+      setCorrectFeedbackCell(null);
+    }
   };
 
   const useHint = (): void => {
@@ -594,6 +623,7 @@ export default function App() {
 
     setSelectedCell({ row: hint.move.row, col: hint.move.col });
     setIncorrectCell(null);
+    setCorrectFeedbackCell(null);
     triggerSelectionHaptic();
     setState(nextState);
 
@@ -627,6 +657,7 @@ export default function App() {
     }
 
     setIncorrectCell(null);
+    setCorrectFeedbackCell(null);
     triggerSelectionHaptic();
     setState(result.state);
     persistMove({
@@ -656,6 +687,7 @@ export default function App() {
         }
 
         setIncorrectCell(null);
+        setCorrectFeedbackCell(null);
         triggerSelectionHaptic();
         setState(result.state);
         refreshSyncSummary();
@@ -669,6 +701,7 @@ export default function App() {
     const nextState = createInitialSudokuState(generated.puzzle);
 
     setIncorrectCell(null);
+    setCorrectFeedbackCell(null);
     setCompletionReward(null);
     setIsCompletionVisible(false);
     setIsSettingsVisible(false);
@@ -697,6 +730,7 @@ export default function App() {
       state.status === "paused" ? resumeSudokuState(state) : pauseSudokuState(state);
 
     setIncorrectCell(null);
+    setCorrectFeedbackCell(null);
     setState(nextState);
     void saveSudokuSnapshot({
       gameId,
@@ -941,6 +975,7 @@ export default function App() {
                   const notes = state.notes[rowIndex]?.[colIndex] ?? [];
                   const cellUiState = getSudokuCellUiState({
                     col: colIndex,
+                    correctFeedbackCell,
                     givens: generated.puzzle.givens,
                     grid: state.grid,
                     incorrectCell,
@@ -962,6 +997,7 @@ export default function App() {
                         cellUiState.isRelated && styles.relatedCell,
                         cellUiState.isSameDigit && styles.sameDigitCell,
                         cellUiState.isSelected && styles.selectedCell,
+                        cellUiState.isCorrectFeedback && styles.correctFeedbackCell,
                         cellUiState.isIncorrect && styles.incorrectCell,
                         colIndex % 3 === 2 && colIndex !== 8 && styles.boxRight,
                         rowIndex % 3 === 2 && rowIndex !== 8 && styles.boxBottom,
@@ -1789,6 +1825,11 @@ function createStyles(colors: AppThemeColors) {
     },
     incorrectCell: {
       backgroundColor: colors.incorrectCell,
+    },
+    correctFeedbackCell: {
+      backgroundColor: colors.correctFeedbackCell,
+      borderColor: colors.correctFeedbackBorder,
+      borderWidth: 1,
     },
     incorrectBadge: {
       alignItems: "center",

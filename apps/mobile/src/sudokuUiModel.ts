@@ -8,6 +8,7 @@ export interface SudokuCellPosition {
 
 export interface SudokuCellUiState {
   accessibilityLabel: string;
+  isCorrectFeedback: boolean;
   isGiven: boolean;
   isIncorrect: boolean;
   isRelated: boolean;
@@ -75,11 +76,13 @@ export function getSudokuCellUiState({
   col,
   givens,
   grid,
+  correctFeedbackCell,
   incorrectCell,
   row,
   selectedCell,
 }: {
   col: number;
+  correctFeedbackCell?: SudokuCellPosition | null;
   givens: boolean[][];
   grid: SudokuGrid;
   incorrectCell: SudokuCellPosition | null;
@@ -100,6 +103,7 @@ export function getSudokuCellUiState({
 
   return {
     accessibilityLabel: `Sudoku cell ${row + 1} ${col + 1}`,
+    isCorrectFeedback: correctFeedbackCell?.row === row && correctFeedbackCell.col === col,
     isGiven: givens[row]?.[col] ?? false,
     isIncorrect: incorrectCell?.row === row && incorrectCell.col === col,
     isRelated,
