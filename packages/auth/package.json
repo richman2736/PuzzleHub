@@ -11,6 +11,6 @@
   },
   "dependencies": {
     "@puzzlehub/db": "workspace:*",
-    "better-auth": "1.6.18"
+    "better-auth": "1.6.22"
   }
 }
